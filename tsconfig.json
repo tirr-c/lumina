@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es6",
+    "strict": true,
+    "preserveConstEnums": true,
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"]
+}
