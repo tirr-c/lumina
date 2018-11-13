@@ -6,6 +6,7 @@ import * as util from 'util';
 import { CommandClient, TextChannel } from 'eris';
 import * as dateFns from 'date-fns';
 
+import * as image from './image';
 import * as pixiv from './pixiv';
 
 const token = process.env['BOT_TOKEN'];
@@ -151,9 +152,9 @@ async function main() {
         (async function () {
             const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
             const data = await session.getIllustInfo(id);
-            const loadingMessage = await bot.createMessage(
+            let loadingMessage = await bot.createMessage(
                 msg.channel.id,
-                `**${data.userName}**의 **${data.title}** 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
+                `**${data.userName}**의 **${data.title}**, 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
             );
             await bot.sendChannelTyping(msg.channel.id);
             const embed = {
@@ -172,13 +173,25 @@ async function main() {
                 },
             };
             const file = await session.downloadWithReferer(
-                data.urls.regular,
+                data.urls.original,
                 `https://www.pixiv.net/member_illust.php?mode=medium&illust_id=${id}`,
             );
+            if (file.length > 8e6) {
+                const newLoadingMessage = await bot.createMessage(
+                    msg.channel.id,
+                    `**${data.userName}**의 **${data.title}**, 크기가 커서 줄이고 있어요.`,
+                );
+                await loadingMessage.delete();
+                loadingMessage = newLoadingMessage;
+                await bot.sendChannelTyping(msg.channel.id);
+            }
+            const processedFileData = await image.fitIntoSizeLimit(file);
+            const fileFormat = processedFileData.format;
+            const processedFile = processedFileData.data;
             await bot.createMessage(msg.channel.id, {
                 content: '',
                 embed,
-            }, { file, name: `${id}.jpg` });
+            }, { file: processedFile, name: `${id}.${fileFormat}` });
             await loadingMessage.delete();
         })().catch(err => {
             if (err instanceof pixiv.NotLoggedInError) {
