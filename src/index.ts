@@ -2,7 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as util from 'util';
+
 import { CommandClient, TextChannel } from 'eris';
+import * as dateFns from 'date-fns';
 
 import * as pixiv from './pixiv';
 
@@ -137,6 +139,59 @@ async function main() {
         fullDescription: '암호화된 Base64 데이터를 써서 로그인해요.',
     });
 
+    pixivCommand.registerSubcommand('일러스트', (msg, args) => {
+        if (args.length !== 1) {
+            return ':x: 일러스트 ID를 한 개 입력해 주세요.';
+        }
+        const id = args[0];
+        if (!/^\d+$/.test(id)) {
+            return ':x: 일러스트 ID는 숫자로만 이루어져 있어요.';
+        }
+
+        (async function () {
+            const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
+            const data = await session.getIllustInfo(id);
+            const loadingMessage = await bot.createMessage(
+                msg.channel.id,
+                `**${data.userName}**의 **${data.title}** 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
+            );
+            await bot.sendChannelTyping(msg.channel.id);
+            const embed = {
+                title: data.title,
+                description: data.description,
+                url: `https://www.pixiv.net/i/${data.id}`,
+                timestamp: dateFns.format(data.createDate),
+                color: 0x0096fa,
+                provider: {
+                    name: 'pixiv',
+                    url: 'https://www.pixiv.net/',
+                },
+                author: {
+                    name: data.userName,
+                    url: `https://www.pixiv.net/u/${data.userId}`,
+                },
+            };
+            const file = await session.downloadWithReferer(
+                data.urls.regular,
+                `https://www.pixiv.net/member_illust.php?mode=medium&illust_id=${id}`,
+            );
+            await bot.createMessage(msg.channel.id, {
+                content: '',
+                embed,
+            }, { file, name: `${id}.jpg` });
+            await loadingMessage.delete();
+        })().catch(err => {
+            if (err instanceof pixiv.NotLoggedInError) {
+                return ':x: 로그인부터 해야 해요!';
+            } else {
+                console.error(err);
+                return ':dizzy_face: 서버 오류예요...';
+            }
+        });
+    }, {
+        description: '일러스트 조회',
+        fullDescription: '일러스트 정보를 가져옵니다.',
+    });
     bot.connect();
 
     process.on('SIGINT', () => handleTermination(bot));

@@ -5,6 +5,8 @@ import * as qs from 'querystring';
 
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import * as cheerio from 'cheerio';
+import * as dateFns from 'date-fns';
+import * as Hjson from 'hjson';
 import { Cookie, CookieJar } from 'tough-cookie';
 
 export class DecryptError extends Error {
@@ -14,6 +16,55 @@ export class PixivLoginError extends Error {
 }
 
 export class PixivLoginFormatError extends Error {
+}
+
+export class DataError extends Error {
+}
+
+export class NotLoggedInError extends Error {
+}
+
+export class NotFoundError extends Error {
+}
+
+export interface Response<T> {
+    error: boolean;
+    message: string;
+    body: T;
+}
+
+// Not complete
+export interface User {
+    userId: string;
+    name: string;
+    image: string;
+    imageBig: string;
+}
+
+export interface IllustUrls {
+    mini: string;
+    thumb: string;
+    small: string;
+    regular: string;
+    original: string;
+}
+
+export interface Illust {
+    id: string;
+    title: string;
+    description: string;
+    illustType: number;
+    createDate: Date;
+    uploadDate: Date;
+    restrict: number;
+    xRestrict: number;
+    urls: IllustUrls;
+    userId: string;
+    userName: string;
+    userAccount: string;
+    width: number;
+    height: number;
+    pageCount: number;
 }
 
 export class PixivSession {
@@ -59,8 +110,10 @@ export class PixivSession {
     };
 
     private axiosInstance = axios.create({
-        responseType: 'text',
+        paramsSerializer: qs.stringify,
     });
+
+    private token: string | undefined;
 
     private constructor(
         private jar: CookieJar,
@@ -71,7 +124,45 @@ export class PixivSession {
 
     async saveSessionData(path: string): Promise<void> {
         const data = this.jar.serializeSync();
-        await fs.promises.writeFile(path, data, 'utf8');
+        await fs.promises.writeFile(path, JSON.stringify(data), 'utf8');
+    }
+
+    async getUser(userId: string): Promise<User> {
+        const resp = await this.axiosInstance.get(`https://www.pixiv.net/u/${userId}`);
+        const regex = /\)\((\{.*)\})\);/.exec(resp.data);
+        if (regex == null) {
+            throw new DataError();
+        }
+        return Hjson.parse(regex[1]).preload.user[userId];
+    }
+
+    async getIllustInfo(illustId: string): Promise<Illust> {
+        const resp = await this.axiosInstance.get(`https://www.pixiv.net/ajax/illust/${illustId}`);
+        const ret = { ...resp.data.body };
+        ret.description = cheerio.load(ret.description)(':root').text();
+        ret.createDate = dateFns.parse(ret.createDate);
+        ret.uploadDate = dateFns.parse(ret.uploadDate);
+        return ret;
+    }
+
+    async downloadWithReferer(url: string, referer: string): Promise<Buffer> {
+        const resp = await this.axiosInstance.get(
+            url,
+            {
+                headers: { referer },
+                responseType: 'arraybuffer',
+            },
+        );
+        return resp.data;
+    }
+
+    private async getToken(): Promise<string> {
+        const resp = await this.axiosInstance.get('https://www.pixiv.net/');
+        const regex = /pixiv\.context\.token\s*=\s*"([0-9a-f]*)"/.exec(resp.data);
+        if (regex == null) {
+            throw new NotLoggedInError();
+        }
+        return regex[1];
     }
 
     private async getPostKey(): Promise<string> {
@@ -102,6 +193,7 @@ export class PixivSession {
                 withCredentials: true,
             },
         );
+        this.token = await this.getToken();
         return resp.data;
     }
 
@@ -129,8 +221,15 @@ export class PixivSession {
     }
 
     static async fromSessionData(path: string): Promise<PixivSession> {
-        const data = await fs.promises.readFile(path, 'utf8');
+        let data;
+        try {
+            data = await fs.promises.readFile(path, 'utf8');
+        } catch (_err) {
+            throw new NotLoggedInError();
+        }
         const jar = CookieJar.deserializeSync(data);
-        return new PixivSession(jar);
+        const session = new PixivSession(jar);
+        session.token = await session.getToken();
+        return session;
     }
 }
