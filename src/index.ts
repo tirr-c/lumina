@@ -9,6 +9,10 @@ import * as dateFns from 'date-fns';
 import * as image from './image';
 import * as pixiv from './pixiv';
 
+interface DiscordInfo {
+    noticeChannelId?: string;
+}
+
 const token = process.env['BOT_TOKEN'];
 if (token == null) {
     console.error('BOT_TOKEN not set.');
@@ -18,6 +22,7 @@ if (token == null) {
 const home = process.env['LUMINA_HOME'] || '/var/lib/lumina';
 const privateKeyPath = path.join(home, 'rsa');
 const publicKeyPath = path.join(home, 'rsa.pub');
+const discordInfoPath = path.join(home, 'discord.json');
 const pixivSessionPath = path.join(home, 'pixiv.json');
 
 function handleTermination(bot?: CommandClient) {
@@ -58,7 +63,18 @@ async function initializeFilesystem() {
     const publicKey = await fs.promises.readFile(publicKeyPath, 'utf8');
     console.error('Successfully loaded key pair');
 
-    return { publicKey, privateKey };
+    try {
+        await fs.promises.access(discordInfoPath, fs.constants.R_OK);
+    } catch (_err) {
+        await fs.promises.writeFile(discordInfoPath, JSON.stringify({}), { encoding: 'utf8', mode: 0o600 });
+    }
+    const discord = JSON.parse(await fs.promises.readFile(discordInfoPath, 'utf8'));
+
+    return { discord, publicKey, privateKey };
+}
+
+async function saveDiscordInfo(discord: DiscordInfo) {
+    await fs.promises.writeFile(discordInfoPath, JSON.stringify(discord), { encoding: 'utf8', mode: 0o600 });
 }
 
 async function processPixivIllust(bot: Client, msg: Message, id: string) {
