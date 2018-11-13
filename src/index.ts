@@ -65,12 +65,12 @@ async function main() {
         owner: 'Tirr',
     });
 
-    bot.registerCommand('key', '```\n' + publicKey + '```', {
+    bot.registerCommand('공개키', '```\n' + publicKey + '```', {
         description: '공개 키 출력',
         fullDescription: '제 공개 키를 알려줄게요.',
     });
 
-    const pixivCommand = bot.registerCommand('pixiv', msg => {
+    const pixivCommand = bot.registerCommand('픽시브', msg => {
         (async function () {
             let userAuthenticated = true;
             try {
@@ -95,13 +95,13 @@ async function main() {
         fullDescription: '픽시브와 관련된 명령들이에요.',
     });
 
-    pixivCommand.registerSubcommand('login', (msg, args) => {
+    pixivCommand.registerSubcommand('로그인', (msg, args) => {
         if (args.length !== 1) {
             return ':x: Base64 데이터가 필요해요.';
         }
         let data: Buffer;
         try {
-            const b64data = args[0];
+            const b64data = args[0].replace(/`/g, '');
             data = Buffer.from(b64data, 'base64');
         } catch (err) {
             if (err instanceof TypeError) {
@@ -124,6 +124,8 @@ async function main() {
                 sendMsg = ':x: 유저명과 비밀번호가 안 보여요.';
             } else if (err instanceof pixiv.PixivLoginError) {
                 sendMsg = ':x: 로그인에 실패했어요.';
+            } else if (err instanceof pixiv.DecryptError) {
+                sendMsg = ':x: 복호화에 실패했어요. 키는 맞게 입력하셨나요?';
             } else {
                 console.error(err);
                 sendMsg = ':dizzy_face: 서버 오류예요...';
@@ -133,11 +135,6 @@ async function main() {
     }, {
         description: '로그인',
         fullDescription: '암호화된 Base64 데이터를 써서 로그인해요.',
-    });
-
-    bot.registerCommand('ping', 'Pong', {
-        description: 'Ping pong',
-        fullDescription: '간단한 핑퐁 커맨드입니다.',
     });
 
     bot.connect();

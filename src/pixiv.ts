@@ -7,6 +7,9 @@ import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import * as cheerio from 'cheerio';
 import { Cookie, CookieJar } from 'tough-cookie';
 
+export class DecryptError extends Error {
+}
+
 export class PixivLoginError extends Error {
 }
 
@@ -103,7 +106,12 @@ export class PixivSession {
     }
 
     static async loginWithEncrypted(privateKey: string, cipher: Buffer): Promise<PixivSession> {
-        const raw = crypto.privateDecrypt({ key: privateKey, passphrase: 'lumina' }, cipher);
+        let raw;
+        try {
+            raw = crypto.privateDecrypt({ key: privateKey, passphrase: 'lumina' }, cipher);
+        } catch (_err) {
+            throw new DecryptError();
+        }
         const cred = raw.toString();
         const [username, password] = cred.split(':').slice(1, 3);
         if (username == null || password == null) {
