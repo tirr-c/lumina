@@ -128,32 +128,44 @@ export class PixivSession {
     }
 
     async getUser(userId: string): Promise<User> {
-        const resp = await this.axiosInstance.get(`https://www.pixiv.net/u/${userId}`);
-        const regex = /\)\((\{.*)\})\);/.exec(resp.data);
-        if (regex == null) {
-            throw new DataError();
+        try {
+            const resp = await this.axiosInstance.get(`https://www.pixiv.net/u/${userId}`);
+            const regex = /\)\((\{.*)\})\);/.exec(resp.data);
+            if (regex == null) {
+                throw new DataError();
+            }
+            return Hjson.parse(regex[1]).preload.user[userId];
+        } catch (_err) {
+            throw new NotFoundError();
         }
-        return Hjson.parse(regex[1]).preload.user[userId];
     }
 
     async getIllustInfo(illustId: string): Promise<Illust> {
-        const resp = await this.axiosInstance.get(`https://www.pixiv.net/ajax/illust/${illustId}`);
-        const ret = { ...resp.data.body };
-        ret.description = cheerio.load(ret.description)(':root').text();
-        ret.createDate = dateFns.parse(ret.createDate);
-        ret.uploadDate = dateFns.parse(ret.uploadDate);
-        return ret;
+        try {
+            const resp = await this.axiosInstance.get(`https://www.pixiv.net/ajax/illust/${illustId}`);
+            const ret = { ...resp.data.body };
+            ret.description = cheerio.load(ret.description)(':root').text();
+            ret.createDate = dateFns.parse(ret.createDate);
+            ret.uploadDate = dateFns.parse(ret.uploadDate);
+            return ret;
+        } catch (_err) {
+            throw new NotFoundError();
+        }
     }
 
     async downloadWithReferer(url: string, referer: string): Promise<Buffer> {
-        const resp = await this.axiosInstance.get(
-            url,
-            {
-                headers: { referer },
-                responseType: 'arraybuffer',
-            },
-        );
-        return resp.data;
+        try {
+            const resp = await this.axiosInstance.get(
+                url,
+                {
+                    headers: { referer },
+                    responseType: 'arraybuffer',
+                },
+            );
+            return resp.data;
+        } catch (_err) {
+            throw new NotFoundError();
+        }
     }
 
     private async getToken(): Promise<string> {

@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as util from 'util';
 
-import { CommandClient, TextChannel } from 'eris';
+import { Client, CommandClient, Message, TextChannel } from 'eris';
 import * as dateFns from 'date-fns';
 
 import * as image from './image';
@@ -61,11 +61,101 @@ async function initializeFilesystem() {
     return { publicKey, privateKey };
 }
 
+async function processPixivIllust(bot: Client, msg: Message, id: string) {
+    try {
+        const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
+        const data = await session.getIllustInfo(id);
+        let loadingMessage = await bot.createMessage(
+            msg.channel.id,
+            `**${data.userName}**의 **${data.title}**, 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
+        );
+        await bot.sendChannelTyping(msg.channel.id);
+        const embed = {
+            title: data.title,
+            description: data.description,
+            url: `https://www.pixiv.net/i/${data.id}`,
+            timestamp: dateFns.format(data.createDate),
+            color: 0x0096fa,
+            provider: {
+                name: 'pixiv',
+                url: 'https://www.pixiv.net/',
+            },
+            author: {
+                name: data.userName,
+                url: `https://www.pixiv.net/u/${data.userId}`,
+            },
+        };
+        const file = await session.downloadWithReferer(
+            data.urls.original,
+            `https://www.pixiv.net/member_illust.php?mode=medium&illust_id=${id}`,
+        );
+        if (file.length > 8e6) {
+            const newLoadingMessage = await bot.createMessage(
+                msg.channel.id,
+                `**${data.userName}**의 **${data.title}**, 크기가 커서 줄이고 있어요.`,
+            );
+            await loadingMessage.delete();
+            loadingMessage = newLoadingMessage;
+            await bot.sendChannelTyping(msg.channel.id);
+        }
+        const processedFileData = await image.fitIntoSizeLimit(file);
+        const fileFormat = processedFileData.format;
+        const processedFile = processedFileData.data;
+        await bot.createMessage(msg.channel.id, {
+            content: '',
+            embed,
+        }, { file: processedFile, name: `${id}.${fileFormat}` });
+        await loadingMessage.delete();
+    } catch (err) {
+        if (err instanceof pixiv.NotLoggedInError) {
+            await bot.createMessage(msg.channel.id, ':x: 로그인부터 해야 해요!');
+        } else if (err instanceof pixiv.NotFoundError) {
+            await bot.createMessage(msg.channel.id, ':x: 일러스트를 찾을 수 없어요.');
+        } else {
+            console.error(err);
+            await bot.createMessage(msg.channel.id, ':dizzy_face: 서버 오류예요...');
+        }
+    }
+}
+
 async function main() {
     const { publicKey, privateKey } = await initializeFilesystem();
 
     const bot = new CommandClient(token!, {}, {
         owner: 'Tirr',
+    });
+
+    bot.on('messageCreate', async msg => {
+        const myId = bot.user.id;
+        const mentions = [`<@${myId}>`, `<@!${myId}>`];
+        const content = msg.content;
+        const splitContent = content.split(' ');
+        if (splitContent.length !== 2 || mentions.indexOf(splitContent[0]) === -1) {
+            return;
+        }
+
+        // URL tests
+        const url = splitContent[1];
+        let regex;
+        regex =
+            /^https?:\/\/(?:www\.)?pixiv\.net\/i\/(\d+)$/.exec(url) ||
+            (
+                /^https?:\/\/(?:www\.)?pixiv\.net\/member_illust\.php/.test(url) ?
+                /illust_id=(\d+)/.exec(url) :
+                null
+            );
+        if (regex != null) {
+            const id = regex[1];
+            if (msg.channel instanceof TextChannel) {
+                await msg.delete();
+                await bot.createMessage(
+                    msg.channel.id,
+                    `<@${msg.author.id}>님의 **픽시브 일러스트 ${id}** 요청입니다.`
+                );
+            }
+            await processPixivIllust(bot, msg, id);
+            return;
+        }
     });
 
     bot.registerCommand('공개키', '```\n' + publicKey + '```', {
@@ -149,62 +239,12 @@ async function main() {
             return ':x: 일러스트 ID는 숫자로만 이루어져 있어요.';
         }
 
-        (async function () {
-            const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
-            const data = await session.getIllustInfo(id);
-            let loadingMessage = await bot.createMessage(
-                msg.channel.id,
-                `**${data.userName}**의 **${data.title}**, 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
-            );
-            await bot.sendChannelTyping(msg.channel.id);
-            const embed = {
-                title: data.title,
-                description: data.description,
-                url: `https://www.pixiv.net/i/${data.id}`,
-                timestamp: dateFns.format(data.createDate),
-                color: 0x0096fa,
-                provider: {
-                    name: 'pixiv',
-                    url: 'https://www.pixiv.net/',
-                },
-                author: {
-                    name: data.userName,
-                    url: `https://www.pixiv.net/u/${data.userId}`,
-                },
-            };
-            const file = await session.downloadWithReferer(
-                data.urls.original,
-                `https://www.pixiv.net/member_illust.php?mode=medium&illust_id=${id}`,
-            );
-            if (file.length > 8e6) {
-                const newLoadingMessage = await bot.createMessage(
-                    msg.channel.id,
-                    `**${data.userName}**의 **${data.title}**, 크기가 커서 줄이고 있어요.`,
-                );
-                await loadingMessage.delete();
-                loadingMessage = newLoadingMessage;
-                await bot.sendChannelTyping(msg.channel.id);
-            }
-            const processedFileData = await image.fitIntoSizeLimit(file);
-            const fileFormat = processedFileData.format;
-            const processedFile = processedFileData.data;
-            await bot.createMessage(msg.channel.id, {
-                content: '',
-                embed,
-            }, { file: processedFile, name: `${id}.${fileFormat}` });
-            await loadingMessage.delete();
-        })().catch(err => {
-            if (err instanceof pixiv.NotLoggedInError) {
-                return ':x: 로그인부터 해야 해요!';
-            } else {
-                console.error(err);
-                return ':dizzy_face: 서버 오류예요...';
-            }
-        });
+        processPixivIllust(bot, msg, id);
     }, {
         description: '일러스트 조회',
         fullDescription: '일러스트 정보를 가져옵니다.',
     });
+
     bot.connect();
 
     process.on('SIGINT', () => handleTermination(bot));
