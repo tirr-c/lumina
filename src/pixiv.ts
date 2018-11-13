@@ -105,7 +105,7 @@ export class PixivSession {
     static async loginWithEncrypted(privateKey: string, cipher: Buffer): Promise<PixivSession> {
         const raw = crypto.privateDecrypt({ key: privateKey, passphrase: 'lumina' }, cipher);
         const cred = raw.toString();
-        const [username, password] = cred.split(':').slice(1, 2);
+        const [username, password] = cred.split(':').slice(1, 3);
         if (username == null || password == null) {
             throw new PixivLoginFormatError();
         }
