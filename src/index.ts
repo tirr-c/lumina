@@ -86,6 +86,7 @@ async function processPixivIllust(bot: Client, msg: Message, id: string) {
             `**${data.userName}**의 **${data.title}**, 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
         );
         await bot.sendChannelTyping(msg.channel.id);
+
         const embed = {
             title: data.title,
             description: data.description,
@@ -99,6 +100,10 @@ async function processPixivIllust(bot: Client, msg: Message, id: string) {
             author: {
                 name: data.userName,
                 url: `https://www.pixiv.net/u/${data.userId}`,
+            },
+            footer: {
+                text: `${msg.author.username}님의 요청`,
+                icon_url: msg.author.staticAvatarURL,
             },
         };
         const file = await session.downloadWithReferer(
@@ -117,6 +122,7 @@ async function processPixivIllust(bot: Client, msg: Message, id: string) {
         const processedFileData = await image.fitIntoSizeLimit(file);
         const fileFormat = processedFileData.format;
         const processedFile = processedFileData.data;
+
         await bot.createMessage(msg.channel.id, {
             content: '',
             embed,
@@ -162,14 +168,10 @@ async function main() {
             );
         if (regex != null) {
             const id = regex[1];
+            await processPixivIllust(bot, msg, id);
             if (msg.channel instanceof TextChannel) {
                 await msg.delete();
-                await bot.createMessage(
-                    msg.channel.id,
-                    `<@${msg.author.id}>님의 **픽시브 일러스트 ${id}** 요청입니다.`
-                );
             }
-            await processPixivIllust(bot, msg, id);
             return;
         }
     });
