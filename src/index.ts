@@ -24,6 +24,7 @@ const privateKeyPath = path.join(home, 'rsa');
 const publicKeyPath = path.join(home, 'rsa.pub');
 const discordInfoPath = path.join(home, 'discord.json');
 const pixivSessionPath = path.join(home, 'pixiv.json');
+const noticePath = path.join(home, 'notices');
 
 function handleTermination(bot?: CommandClient) {
     bot && bot.disconnect({ reconnect: false });
@@ -69,6 +70,8 @@ async function initializeFilesystem() {
         await fs.promises.writeFile(discordInfoPath, JSON.stringify({}), { encoding: 'utf8', mode: 0o600 });
     }
     const discord = JSON.parse(await fs.promises.readFile(discordInfoPath, 'utf8'));
+
+    await fs.promises.mkdir(noticePath, { recursive: true });
 
     return { discord, publicKey, privateKey };
 }
@@ -140,11 +143,37 @@ async function processPixivIllust(bot: Client, msg: Message, id: string) {
     }
 }
 
+async function runAllNotices(bot: Client, noticeChannelId: string) {
+    const files = await util.promisify(fs.readdir)(noticePath, { withFileTypes: true });
+    const sortedFiles =
+        files
+            .filter(file => file.isFile())
+            .sort((a, b) => {
+                if (a.name < b.name) return -1;
+                if (a.name > b.name) return 1;
+                return 0;
+            })
+            .map(file => path.join(noticePath, file.name));
+    for (const file of sortedFiles) {
+        console.error('Processing notice file:', file);
+        const content = await fs.promises.readFile(file, 'utf8');
+        const processedContent = content.replace(/@me/g, `<@!${bot.user.id}>`);
+        await bot.createMessage(noticeChannelId, processedContent);
+        await fs.promises.unlink(file);
+    }
+}
+
 async function main() {
-    const { publicKey, privateKey } = await initializeFilesystem();
+    const { discord, publicKey, privateKey } = await initializeFilesystem();
 
     const bot = new CommandClient(token!, {}, {
         owner: 'Tirr',
+    });
+
+    bot.on('ready', async () => {
+        if (discord.noticeChannelId != null) {
+            await runAllNotices(bot, discord.noticeChannelId);
+        }
     });
 
     bot.on('messageCreate', async msg => {
@@ -174,6 +203,20 @@ async function main() {
             }
             return;
         }
+    });
+
+    const sudoCommand = bot.registerCommand('sudo', '', {
+        hidden: true,
+        requirements: { roleNames: ['operator'] }
+    });
+
+    sudoCommand.registerSubcommand('set-notice-channel', msg => {
+        const channelId = msg.channel.id;
+        discord.noticeChannelId = channelId;
+        saveDiscordInfo(discord).catch(console.error);
+        runAllNotices(bot, channelId).catch(console.error);
+    }, {
+        deleteCommand: true,
     });
 
     bot.registerCommand('공개키', '```\n' + publicKey + '```', {
