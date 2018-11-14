@@ -1,5 +1,7 @@
 import * as sharp from 'sharp';
 
+const SIZE_LIMIT: number = 8e6 - 5000;
+
 export interface ImageData {
     format: string;
     data: Buffer;
@@ -13,7 +15,7 @@ export async function fitIntoSizeLimit(image: Buffer): Promise<ImageData> {
     if (format == null || height == null) {
         throw new Error();
     }
-    if (image.length <= 8e6) {
+    if (image.length <= SIZE_LIMIT) {
         return {
             format,
             data: image,
@@ -30,9 +32,9 @@ export async function fitIntoSizeLimit(image: Buffer): Promise<ImageData> {
             .toBuffer();
     let currentHeight = height;
     let size;
-    while ((size = compressed.length) > 8e6) {
-        console.error(`Size: ${size} > 8 000 000, resizing`);
-        const ratio = Math.sqrt(size / 8e6);
+    while ((size = compressed.length) > SIZE_LIMIT) {
+        console.error(`Size: ${size} > 7 995 000, resizing`);
+        const ratio = Math.sqrt(size / SIZE_LIMIT);
         console.error(`Ratio: ${ratio}`);
         if (ratio < 1.01) {
             currentHeight -= 20;
