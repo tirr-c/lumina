@@ -1,4 +1,4 @@
-import { processIllustRequest } from '../handler/pixiv';
+import { processIllustRequest, processUserRequest } from '../handler/pixiv';
 import { UnfurlHandler } from '.';
 
 const illustHandler: UnfurlHandler<string> = {
@@ -22,6 +22,28 @@ const illustHandler: UnfurlHandler<string> = {
     handle: processIllustRequest,
 };
 
+const userHandler: UnfurlHandler<string> = {
+    testUrl(url) {
+        if (url.host !== 'www.pixiv.net' && url.host !== 'pixiv.net') {
+            return undefined;
+        }
+        if (url.pathname === '/member.php') {
+            const id = url.searchParams.get('id');
+            if (id != null && /^\d+$/.test(id)) {
+                return id;
+            }
+            return undefined;
+        }
+        const regex = /^\/u\/(\d+)$/.exec(url.pathname);
+        if (regex != null) {
+            return regex[1];
+        }
+        return undefined;
+    },
+    handle: processUserRequest,
+};
+
 export {
     illustHandler,
+    userHandler,
 };

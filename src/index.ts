@@ -216,6 +216,21 @@ async function main() {
         fullDescription: '암호화된 Base64 데이터를 써서 로그인해요.',
     });
 
+    pixivCommand.registerSubcommand('유저', (msg, args) => {
+        if (args.length !== 1) {
+            return ':x: 유저 ID를 한 개 입력해 주세요.';
+        }
+        const id = args[0];
+        if (!/^\d+$/.test(id)) {
+            return ':x: 유저 ID는 숫자로만 이루어져 있어요.';
+        }
+
+        pixivHandlers.processUserRequest(bot, msg, id);
+    }, {
+        description: '유저 조회',
+        fullDescription: '유저 정보를 가져옵니다.',
+    });
+
     pixivCommand.registerSubcommand('일러스트', (msg, args) => {
         if (args.length !== 1) {
             return ':x: 일러스트 ID를 한 개 입력해 주세요.';

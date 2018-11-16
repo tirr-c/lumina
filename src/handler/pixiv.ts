@@ -104,3 +104,36 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
         }
     }
 }
+
+export async function processUserRequest(bot: Client, msg: Message, id: string) {
+    try {
+        const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
+        const user = await session.getUser(id);
+
+        const thumbnail = user.imageBig != null ? { url: user.imageBig } : undefined;
+        const embed = {
+            title: user.name,
+            description: user.comment,
+            url: `https://www.pixiv.net/u/${user.userId}`,
+            color: 0x0096fa,
+            thumbnail,
+        };
+
+        await bot.createMessage(
+            msg.channel.id,
+            {
+                content: '',
+                embed,
+            },
+        );
+    } catch (err) {
+        if (err instanceof pixiv.NotLoggedInError) {
+            await bot.createMessage(msg.channel.id, ':x: 로그인부터 해야 해요!');
+        } else if (err instanceof pixiv.NotFoundError) {
+            await bot.createMessage(msg.channel.id, ':x: 유저를 찾을 수 없어요.');
+        } else {
+            console.error(err);
+            await bot.createMessage(msg.channel.id, ':dizzy_face: 서버 오류예요...');
+        }
+    }
+}

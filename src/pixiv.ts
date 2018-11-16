@@ -37,8 +37,13 @@ export interface Response<T> {
 export interface User {
     userId: string;
     name: string;
-    image: string;
-    imageBig: string;
+    image?: string | null;
+    imageBig?: string | null;
+    premium: boolean;
+    comment: string;
+    following: number;
+    webpage?: string | null;
+    official: boolean;
 }
 
 export interface Illust {
@@ -160,8 +165,8 @@ export class PixivSession {
 
     async getUser(userId: string): Promise<User> {
         try {
-            const resp = await this.axiosInstance.get(`https://www.pixiv.net/u/${userId}`);
-            const regex = /\)\((\{.*)\})\);/.exec(resp.data);
+            const resp = await this.axiosInstance.get(`https://www.pixiv.net/member.php?id=${userId}`);
+            const regex = /\)\((\{.*\})\);/.exec(resp.data);
             if (regex == null) {
                 throw new DataError();
             }

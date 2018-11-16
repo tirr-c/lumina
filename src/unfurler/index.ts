@@ -2,7 +2,7 @@ import { URL } from 'url';
 
 import { Client, Message } from 'eris';
 
-import { illustHandler } from './pixiv';
+import { illustHandler, userHandler } from './pixiv';
 
 export interface UnfurlHandler<T> {
     testUrl(url: URL): T | undefined;
@@ -31,5 +31,6 @@ export class Unfurler {
 export function createUnfurler(): Unfurler {
     const unfurler = new Unfurler();
     unfurler.addHandler(illustHandler);
+    unfurler.addHandler(userHandler);
     return unfurler;
 }
