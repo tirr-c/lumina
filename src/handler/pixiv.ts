@@ -9,20 +9,6 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
     try {
         const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
         const data = await session.getIllustInfo(id);
-        const restricted = data.restrict !== 0 || data.xRestrict !== 0;
-        const restrictedEmoji = restricted ? ':underage: ' : '';
-        if (restricted && msg.channel instanceof TextChannel && !msg.channel.nsfw) {
-            await bot.createMessage(
-                msg.channel.id,
-                ':underage: 후방주의 채널이 필요해요.'
-            );
-            return;
-        }
-        let loadingMessage = await bot.createMessage(
-            msg.channel.id,
-            `${restrictedEmoji}**${data.userName}**의 **${data.title}**, 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
-        );
-        await bot.sendChannelTyping(msg.channel.id);
 
         const footer = msg.member && {
             text: `${msg.member.nick || msg.member.username}님의 요청`,
@@ -64,6 +50,26 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
             footer,
             fields,
         };
+
+        const restricted = data.restrict !== 0 || data.xRestrict !== 0;
+        const restrictedEmoji = restricted ? ':underage: ' : '';
+
+        if (restricted && msg.channel instanceof TextChannel && !msg.channel.nsfw) {
+            await bot.createMessage(
+                msg.channel.id,
+                {
+                    content: ':underage: 후방주의 채널에서만 볼 수 있어요.',
+                    embed,
+                },
+            );
+            return;
+        }
+
+        let loadingMessage = await bot.createMessage(
+            msg.channel.id,
+            `${restrictedEmoji}**${data.userName}**의 **${data.title}**, 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
+        );
+        await bot.sendChannelTyping(msg.channel.id);
 
         const file = await session.downloadWithReferer(
             data.urls.original,
