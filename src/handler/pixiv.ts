@@ -24,6 +24,29 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
         );
         await bot.sendChannelTyping(msg.channel.id);
 
+        const footer = msg.member && {
+            text: `${msg.member.nick || msg.member.username}님의 요청`,
+            icon_url: msg.member.staticAvatarURL,
+        };
+        const fields = [];
+        fields.push({
+            name: '종류',
+            value: pixiv.illustTypeToString(data.illustType),
+            inline: true,
+        });
+        if (data.pageCount > 1) {
+            fields.push({
+                name: '장 수',
+                value: `${data.pageCount}장`,
+                inline: true,
+            });
+        }
+        if (data.seriesNavData != null) {
+            fields.push({
+                name: '시리즈',
+                value: data.seriesNavData.title,
+            });
+        }
         const embed = {
             title: data.title,
             description: data.description,
@@ -38,11 +61,10 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
                 name: data.userName,
                 url: `https://www.pixiv.net/u/${data.userId}`,
             },
-            footer: {
-                text: `${msg.author.username}님의 요청`,
-                icon_url: msg.author.staticAvatarURL,
-            },
+            footer,
+            fields,
         };
+
         const file = await session.downloadWithReferer(
             data.urls.original,
             `https://www.pixiv.net/member_illust.php?mode=medium&illust_id=${id}`,

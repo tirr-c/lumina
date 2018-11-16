@@ -41,19 +41,11 @@ export interface User {
     imageBig: string;
 }
 
-export interface IllustUrls {
-    mini: string;
-    thumb: string;
-    small: string;
-    regular: string;
-    original: string;
-}
-
 export interface Illust {
     id: string;
     title: string;
     description: string;
-    illustType: number;
+    illustType: IllustType;
     createDate: Date;
     uploadDate: Date;
     restrict: number;
@@ -65,6 +57,45 @@ export interface Illust {
     width: number;
     height: number;
     pageCount: number;
+    seriesNavData?: SeriesNavigationInfo | null;
+}
+
+export const enum IllustType {
+    Illust = 0,
+    Manga = 1,
+    Ugoira = 2,
+}
+
+export interface IllustUrls {
+    mini: string;
+    thumb: string;
+    small: string;
+    regular: string;
+    original: string;
+}
+
+export interface SeriesNavigationInfo {
+    seriesType: string;
+    seriesId: string;
+    title: string;
+    order: number;
+    prev?: SeriesNode | null;
+    next?: SeriesNode | null;
+}
+
+export interface SeriesNode {
+    id: string;
+    title: string;
+    order: number;
+}
+
+export function illustTypeToString(illustType: IllustType) {
+    switch (illustType) {
+        case IllustType.Illust: return '일러스트';
+        case IllustType.Manga: return '만화';
+        case IllustType.Ugoira: return '움직이는 일러스트';
+        default: throw new Error(`Unknown illust type: ${illustType}`);
+    }
 }
 
 export class PixivSession {
