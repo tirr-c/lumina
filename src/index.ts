@@ -6,9 +6,18 @@ import * as util from 'util';
 import { Client, CommandClient, Message, TextChannel } from 'eris';
 import * as dateFns from 'date-fns';
 
+import * as airHandlers from './handler/air';
 import * as pixivHandlers from './handler/pixiv';
 import * as image from './image';
-import { home, privateKeyPath, publicKeyPath, discordInfoPath, pixivSessionPath, noticePath } from './path';
+import {
+    home,
+    privateKeyPath,
+    publicKeyPath,
+    discordInfoPath,
+    pixivSessionPath,
+    noticePath,
+    kakaoTokenPath,
+} from './path';
 import * as pixiv from './pixiv';
 import { createUnfurler } from './unfurler';
 
@@ -69,7 +78,13 @@ async function initializeFilesystem() {
 
     await fs.promises.mkdir(noticePath, { recursive: true });
 
-    return { discord, publicKey, privateKey };
+    let kakaoToken: string | undefined;
+    try {
+        kakaoToken = (await fs.promises.readFile(kakaoTokenPath, 'utf8')).trim();
+    } catch (_err) {
+    }
+
+    return { discord, kakaoToken, publicKey, privateKey };
 }
 
 async function saveDiscordInfo(discord: DiscordInfo) {
@@ -97,7 +112,7 @@ async function runAllNotices(bot: Client, noticeChannelId: string) {
 }
 
 async function main() {
-    const { discord, publicKey, privateKey } = await initializeFilesystem();
+    const { discord, kakaoToken, publicKey, privateKey } = await initializeFilesystem();
 
     const unfurler = createUnfurler();
 
@@ -148,6 +163,19 @@ async function main() {
         description: '공개 키 출력',
         fullDescription: '제 공개 키를 알려줄게요.',
     });
+
+    if (kakaoToken != null) {
+        bot.registerCommand('미세먼지', (msg, args) => {
+            const query = args.join(' ');
+            if (query === '') {
+                return ':x: 위치를 알려 주세요.'
+            }
+
+            airHandlers.handleAirQuery(bot, msg, { kakaoToken, query });
+        }, {
+            description: '미세먼지 정보 검색',
+        });
+    }
 
     const pixivCommand = bot.registerCommand('픽시브', msg => {
         (async function () {
