@@ -171,7 +171,13 @@ async function main() {
                 return ':x: 위치를 알려 주세요.'
             }
 
-            airHandlers.handleAirQuery(bot, msg, { kakaoToken, query });
+            airHandlers.handleAirQuery(bot, msg, { kakaoToken, query }).catch(err => {
+                console.error(err);
+                bot.createMessage(
+                    msg.channel.id,
+                    ':dizzy_face: 서버 오류예요...',
+                );
+            });
         }, {
             description: '미세먼지 정보 검색',
         });
