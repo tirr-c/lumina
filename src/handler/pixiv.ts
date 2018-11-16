@@ -9,9 +9,18 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
     try {
         const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
         const data = await session.getIllustInfo(id);
+        const restricted = data.restrict !== 0 || data.xRestrict !== 0;
+        const restrictedEmoji = restricted ? ':underage: ' : '';
+        if (restricted && msg.channel instanceof TextChannel && !msg.channel.nsfw) {
+            await bot.createMessage(
+                msg.channel.id,
+                ':underage: 후방주의 채널이 필요해요.'
+            );
+            return;
+        }
         let loadingMessage = await bot.createMessage(
             msg.channel.id,
-            `**${data.userName}**의 **${data.title}**, 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
+            `${restrictedEmoji}**${data.userName}**의 **${data.title}**, 다운로드하고 있습니다. 잠시만 기다려 주세요!`,
         );
         await bot.sendChannelTyping(msg.channel.id);
 
@@ -41,7 +50,7 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
         if (file.length > 8e6) {
             const newLoadingMessage = await bot.createMessage(
                 msg.channel.id,
-                `**${data.userName}**의 **${data.title}**, 크기가 커서 줄이고 있어요.`,
+                `${restrictedEmoji}**${data.userName}**의 **${data.title}**, 크기가 커서 줄이고 있어요.`,
             );
             await loadingMessage.delete();
             loadingMessage = newLoadingMessage;
@@ -52,7 +61,7 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
         const processedFile = processedFileData.data;
 
         await bot.createMessage(msg.channel.id, {
-            content: '',
+            content: restricted ? ':underage: R-18으로 지정된 일러스트입니다.' : '',
             embed,
         }, { file: processedFile, name: `${id}.${fileFormat}` });
         await loadingMessage.delete();
