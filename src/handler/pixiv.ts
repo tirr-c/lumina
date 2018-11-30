@@ -5,7 +5,9 @@ import * as image from '../image';
 import { pixivSessionPath } from '../path';
 import * as pixiv from '../pixiv';
 
-export async function processIllustRequest(bot: Client, msg: Message, id: string) {
+import { DiscordInfo, getLinkedChannels, getOrCreateChannelWebhook } from '../discord';
+
+export async function processIllustRequest(bot: Client, discord: DiscordInfo, msg: Message, id: string) {
     try {
         const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
         const data = await session.getIllustInfo(id);
@@ -88,10 +90,15 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
         const fileFormat = processedFileData.format;
         const processedFile = processedFileData.data;
 
-        await bot.createMessage(msg.channel.id, {
-            content: restricted ? ':underage: R-18으로 지정된 일러스트입니다.' : '',
-            embed,
-        }, { file: processedFile, name: `${id}.${fileFormat}` });
+        const channels = getLinkedChannels(discord, msg.channel.id);
+        channels.unshift(msg.channel.id);
+        const createMessagePromise = channels.map(async channelId => {
+            await bot.createMessage(channelId, {
+                content: restricted ? ':underage: R-18으로 지정된 일러스트입니다.' : '',
+                embed,
+            }, { file: processedFile, name: `${id}.${fileFormat}` });
+        });
+        await Promise.all(createMessagePromise);
         await loadingMessage.delete();
     } catch (err) {
         if (err instanceof pixiv.NotLoggedInError) {
@@ -105,7 +112,7 @@ export async function processIllustRequest(bot: Client, msg: Message, id: string
     }
 }
 
-export async function processUserRequest(bot: Client, msg: Message, id: string) {
+export async function processUserRequest(bot: Client, discord: DiscordInfo, msg: Message, id: string) {
     try {
         const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
         const user = await session.getUser(id);
@@ -119,13 +126,18 @@ export async function processUserRequest(bot: Client, msg: Message, id: string) 
             thumbnail,
         };
 
-        await bot.createMessage(
-            msg.channel.id,
-            {
-                content: '',
-                embed,
-            },
-        );
+        const channels = getLinkedChannels(discord, msg.channel.id);
+        channels.unshift(msg.channel.id);
+        const createMessagePromise = channels.map(channelId => {
+            return bot.createMessage(
+                channelId,
+                {
+                    content: '',
+                    embed,
+                },
+            );
+        });
+        await Promise.all(createMessagePromise);
     } catch (err) {
         if (err instanceof pixiv.NotLoggedInError) {
             await bot.createMessage(msg.channel.id, ':x: 로그인부터 해야 해요!');

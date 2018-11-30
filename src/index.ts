@@ -3,9 +3,11 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as util from 'util';
 
-import { Client, CommandClient, Message, TextChannel } from 'eris';
+import axios from 'axios';
+import { Client, CommandClient, Message, TextChannel, Webhook } from 'eris';
 import * as dateFns from 'date-fns';
 
+import { DiscordInfo, getLinkedChannels, getOrCreateChannelWebhook, saveDiscordInfo } from './discord';
 import * as airHandlers from './handler/air';
 import * as pixivHandlers from './handler/pixiv';
 import * as image from './image';
@@ -20,10 +22,6 @@ import {
 } from './path';
 import * as pixiv from './pixiv';
 import { createUnfurler } from './unfurler';
-
-interface DiscordInfo {
-    noticeChannelId?: string;
-}
 
 const token = process.env['BOT_TOKEN'];
 if (token == null) {
@@ -72,7 +70,14 @@ async function initializeFilesystem() {
     try {
         await fs.promises.access(discordInfoPath, fs.constants.R_OK);
     } catch (_err) {
-        await fs.promises.writeFile(discordInfoPath, JSON.stringify({}), { encoding: 'utf8', mode: 0o600 });
+        await fs.promises.writeFile(
+            discordInfoPath,
+            JSON.stringify({
+                linkedChannels: {},
+                webhooks: {},
+            }),
+            { encoding: 'utf8', mode: 0o600 },
+        );
     }
     const discord = JSON.parse(await fs.promises.readFile(discordInfoPath, 'utf8'));
 
@@ -85,10 +90,6 @@ async function initializeFilesystem() {
     }
 
     return { discord, kakaoToken, publicKey, privateKey };
-}
-
-async function saveDiscordInfo(discord: DiscordInfo) {
-    await fs.promises.writeFile(discordInfoPath, JSON.stringify(discord), { encoding: 'utf8', mode: 0o600 });
 }
 
 async function runAllNotices(bot: Client, noticeChannelId: string) {
@@ -117,7 +118,8 @@ async function main() {
     const unfurler = createUnfurler();
 
     const bot = new CommandClient(token!, {}, {
-        owner: 'Tirr',
+        defaultHelpCommand: false,
+        prefix: '루미나,',
     });
 
     bot.on('ready', async () => {
@@ -128,20 +130,49 @@ async function main() {
 
     bot.on('messageCreate', async msg => {
         const myId = bot.user.id;
-        const mentions = [`<@${myId}>`, `<@!${myId}>`];
-        const content = msg.content;
-        const splitContent = content.split(' ');
-        if (splitContent.length !== 2 || mentions.indexOf(splitContent[0]) === -1) {
+        if (msg.author.id === myId || msg.author.bot) {
             return;
         }
-
-        // URL tests
-        const url = new URL(splitContent[1]);
-        const successful = unfurler.tryUnfurl(bot, msg, url);
-        if (await successful) {
-            if (msg.channel instanceof TextChannel) {
-                await msg.delete();
+        const mentions = ['루미나,'];
+        const content = msg.content;
+        const splitContent = content.split(' ').filter(x => x !== '');
+        if (splitContent.length === 2 && mentions.indexOf(splitContent[0]) !== -1) {
+            // URL tests
+            const url = new URL(splitContent[1]);
+            const successful = unfurler.tryUnfurl(bot, discord, msg, url);
+            if (await successful) {
+                if (msg.channel instanceof TextChannel) {
+                    await msg.delete();
+                }
+                return;
             }
+        }
+
+        const channelId = msg.channel.id;
+        const linkedChannels = getLinkedChannels(discord, channelId);
+        if (linkedChannels.length > 0) {
+            const file = await Promise.all(msg.attachments.map(async attach => {
+                const file = (await axios.get(attach.url, { responseType: 'arraybuffer' })).data;
+                return {
+                    file,
+                    name: attach.filename,
+                };
+            }));
+            const bridgePromise = linkedChannels.map(async (targetChannelId: string) => {
+                const webhook = await getOrCreateChannelWebhook(bot, discord, targetChannelId);
+                await bot.executeWebhook(
+                    webhook.id,
+                    webhook.token,
+                    {
+                        content: msg.cleanContent,
+                        file,
+                        embeds: msg.embeds,
+                        username: msg.member && msg.member.nick ? msg.member.nick : msg.author.username,
+                        avatarURL: msg.author.avatarURL,
+                    },
+                );
+            });
+            await Promise.all(bridgePromise).catch(console.error);
         }
     });
 
@@ -159,10 +190,7 @@ async function main() {
         deleteCommand: true,
     });
 
-    bot.registerCommand('공개키', '```\n' + publicKey + '```', {
-        description: '공개 키 출력',
-        fullDescription: '제 공개 키를 알려줄게요.',
-    });
+    bot.registerCommand('공개키', '```\n' + publicKey + '```');
 
     if (kakaoToken != null) {
         bot.registerCommand('미세먼지', (msg, args) => {
@@ -178,8 +206,6 @@ async function main() {
                     ':dizzy_face: 서버 오류예요...',
                 );
             });
-        }, {
-            description: '미세먼지 정보 검색',
         });
     }
 
@@ -203,9 +229,6 @@ async function main() {
             console.error(err);
             bot.createMessage(msg.channel.id, ':dizzy_face: 서버 오류예요...');
         });
-    }, {
-        description: '픽시브 관련 명령',
-        fullDescription: '픽시브와 관련된 명령들이에요.',
     });
 
     pixivCommand.registerSubcommand('로그인', (msg, args) => {
@@ -245,9 +268,6 @@ async function main() {
             }
             bot.createMessage(msg.channel.id, sendMsg);
         });
-    }, {
-        description: '로그인',
-        fullDescription: '암호화된 Base64 데이터를 써서 로그인해요.',
     });
 
     pixivCommand.registerSubcommand('유저', (msg, args) => {
@@ -259,10 +279,7 @@ async function main() {
             return ':x: 유저 ID는 숫자로만 이루어져 있어요.';
         }
 
-        pixivHandlers.processUserRequest(bot, msg, id);
-    }, {
-        description: '유저 조회',
-        fullDescription: '유저 정보를 가져옵니다.',
+        pixivHandlers.processUserRequest(bot, discord, msg, id);
     });
 
     pixivCommand.registerSubcommand('일러스트', (msg, args) => {
@@ -274,10 +291,7 @@ async function main() {
             return ':x: 일러스트 ID는 숫자로만 이루어져 있어요.';
         }
 
-        pixivHandlers.processIllustRequest(bot, msg, id);
-    }, {
-        description: '일러스트 조회',
-        fullDescription: '일러스트 정보를 가져옵니다.',
+        pixivHandlers.processIllustRequest(bot, discord, msg, id);
     });
 
     bot.connect();

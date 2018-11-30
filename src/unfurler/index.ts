@@ -2,11 +2,12 @@ import { URL } from 'url';
 
 import { Client, Message } from 'eris';
 
+import { DiscordInfo } from '../discord';
 import { illustHandler, userHandler } from './pixiv';
 
 export interface UnfurlHandler<T> {
     testUrl(url: URL): T | undefined;
-    handle(bot: Client, msg: Message, arg: T): Promise<void>;
+    handle(bot: Client, discord: DiscordInfo, msg: Message, arg: T): Promise<void>;
 }
 
 export class Unfurler {
@@ -16,11 +17,11 @@ export class Unfurler {
         this.handlers.push(handler);
     }
 
-    public async tryUnfurl(bot: Client, msg: Message, url: URL): Promise<boolean> {
+    public async tryUnfurl(bot: Client, discord: DiscordInfo, msg: Message, url: URL): Promise<boolean> {
         for (const handler of this.handlers) {
             const arg = handler.testUrl(url);
             if (arg != null) {
-                await handler.handle(bot, msg, arg);
+                await handler.handle(bot, discord, msg, arg);
                 return true;
             }
         }
