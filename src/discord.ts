@@ -15,7 +15,10 @@ export async function saveDiscordInfo(discord: DiscordInfo) {
 }
 
 export function getLinkedChannels(discord: DiscordInfo, channelId: string) {
-    return [...discord.linkedChannels[channelId]] || [];
+    if (channelId in discord.linkedChannels) {
+        return [...discord.linkedChannels[channelId]];
+    }
+    return [];
 }
 
 export async function getOrCreateChannelWebhook(bot: Client, discord: DiscordInfo, channelId: string): Promise<Webhook> {
