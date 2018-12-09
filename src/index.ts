@@ -123,14 +123,21 @@ async function runAllNotices(bot: Client, noticeChannelId: string) {
 async function processSharedUrl(bot: Client, discord: DiscordInfo, msg: Message): Promise<boolean> {
     const splitContent = msg.content.split(' ').filter(x => x !== '');
     // Test: pixiv
+    const pixivIdx = splitContent.indexOf('#pixiv');
+    let url;
     try {
-        const pixivIdx = splitContent.indexOf('#pixiv');
-        const url = new URL(splitContent[pixivIdx + 1]);
+        url = new URL(splitContent[pixivIdx + 1]);
+    } catch (_) {
+        return false;
+    }
+    try {
         const successful = await unfurler.tryUnfurl(bot, discord, msg, url);
         if (successful) {
             return true;
         }
-    } catch (_) {
+    } catch (err) {
+        console.error(err);
+        Sentry.captureException(err);
         return false;
     }
     return false;
@@ -167,13 +174,20 @@ async function main() {
         const splitContent = content.split(' ').filter(x => x !== '');
         if (splitContent.length === 1) {
             // URL tests
-            const url = new URL(splitContent[0]);
-            const successful = unfurler.tryUnfurl(bot, discord, msg, url);
-            if (await successful) {
-                if (msg.channel instanceof TextChannel) {
-                    await msg.delete();
+            let url;
+            try {
+                url = new URL(splitContent[0]);
+            } catch (_) {
+                url = undefined;
+            }
+            if (url != null) {
+                const successful = await unfurler.tryUnfurl(bot, discord, msg, url);
+                if (successful) {
+                    if (msg.channel instanceof TextChannel) {
+                        await msg.delete();
+                    }
+                    return;
                 }
-                return;
             }
         }
 
