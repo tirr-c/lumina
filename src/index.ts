@@ -29,6 +29,8 @@ if (token == null) {
     process.exit(1);
 }
 
+const unfurler = createUnfurler();
+
 function handleTermination(bot?: CommandClient) {
     bot && bot.disconnect({ reconnect: false });
     process.exit(0);
@@ -112,10 +114,24 @@ async function runAllNotices(bot: Client, noticeChannelId: string) {
     }
 }
 
+async function processSharedUrl(bot: Client, discord: DiscordInfo, msg: Message): Promise<boolean> {
+    const splitContent = msg.content.split(' ').filter(x => x !== '');
+    // Test: pixiv
+    try {
+        const pixivIdx = splitContent.indexOf('#pixiv');
+        const url = new URL(splitContent[pixivIdx + 1]);
+        const successful = await unfurler.tryUnfurl(bot, discord, msg, url);
+        if (successful) {
+            return true;
+        }
+    } catch (_) {
+        return false;
+    }
+    return false;
+}
+
 async function main() {
     const { discord, kakaoToken, publicKey, privateKey } = await initializeFilesystem();
-
-    const unfurler = createUnfurler();
 
     const bot = new CommandClient(token!, {}, {
         defaultHelpCommand: false,
@@ -129,6 +145,13 @@ async function main() {
     });
 
     bot.on('messageCreate', async msg => {
+        if (await processSharedUrl(bot, discord, msg)) {
+            if (msg.channel instanceof TextChannel) {
+                await msg.delete();
+            }
+            return;
+        }
+
         const myId = bot.user.id;
         if (msg.author.id === myId || msg.author.bot) {
             return;
@@ -136,9 +159,9 @@ async function main() {
         const mentions = ['루미나,'];
         const content = msg.content;
         const splitContent = content.split(' ').filter(x => x !== '');
-        if (splitContent.length === 2 && mentions.indexOf(splitContent[0]) !== -1) {
+        if (splitContent.length === 1) {
             // URL tests
-            const url = new URL(splitContent[1]);
+            const url = new URL(splitContent[0]);
             const successful = unfurler.tryUnfurl(bot, discord, msg, url);
             if (await successful) {
                 if (msg.channel instanceof TextChannel) {
