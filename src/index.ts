@@ -7,6 +7,8 @@ import axios from 'axios';
 import { Client, CommandClient, Message, TextChannel, Webhook } from 'eris';
 import * as dateFns from 'date-fns';
 
+import * as Sentry from '@sentry/node';
+
 import { DiscordInfo, getAvatarUrl, getLinkedChannels, getOrCreateChannelWebhook, saveDiscordInfo } from './discord';
 import * as airHandlers from './handler/air';
 import * as pixivHandlers from './handler/pixiv';
@@ -27,6 +29,10 @@ const token = process.env['BOT_TOKEN'];
 if (token == null) {
     console.error('BOT_TOKEN not set.');
     process.exit(1);
+}
+const dsn = process.env['SENTRY_DSN'];
+if (dsn) {
+    Sentry.init({ dsn });
 }
 
 const unfurler = createUnfurler();
@@ -195,7 +201,10 @@ async function main() {
                     },
                 );
             });
-            await Promise.all(bridgePromise).catch(console.error);
+            await Promise.all(bridgePromise).catch(err => {
+                console.error(err);
+                Sentry.captureException(err);
+            });
         }
     });
 
@@ -207,8 +216,14 @@ async function main() {
     sudoCommand.registerSubcommand('set-notice-channel', msg => {
         const channelId = msg.channel.id;
         discord.noticeChannelId = channelId;
-        saveDiscordInfo(discord).catch(console.error);
-        runAllNotices(bot, channelId).catch(console.error);
+        saveDiscordInfo(discord).catch(err => {
+            console.error(err);
+            Sentry.captureException(err);
+        });
+        runAllNotices(bot, channelId).catch(err => {
+            console.error(err);
+            Sentry.captureException(err);
+        });
     }, {
         deleteCommand: true,
     });
@@ -224,6 +239,7 @@ async function main() {
 
             airHandlers.handleAirQuery(bot, msg, { kakaoToken, query }).catch(err => {
                 console.error(err);
+                Sentry.captureException(err);
                 bot.createMessage(
                     msg.channel.id,
                     ':dizzy_face: 서버 오류예요...',
@@ -250,6 +266,7 @@ async function main() {
             bot.createMessage(msg.channel.id, sendMsg);
         }).catch(err => {
             console.error(err);
+            Sentry.captureException(err);
             bot.createMessage(msg.channel.id, ':dizzy_face: 서버 오류예요...');
         });
     });
@@ -267,6 +284,7 @@ async function main() {
                 return ':x: Base64가 아닌 것 같은데요!';
             } else {
                 console.error(err);
+                Sentry.captureException(err);
                 return ':dizzy_face: 서버 오류예요...';
             }
         }
@@ -287,6 +305,7 @@ async function main() {
                 sendMsg = ':x: 복호화에 실패했어요. 키는 맞게 입력하셨나요?';
             } else {
                 console.error(err);
+                Sentry.captureException(err);
                 sendMsg = ':dizzy_face: 서버 오류예요...';
             }
             bot.createMessage(msg.channel.id, sendMsg);
@@ -325,5 +344,6 @@ async function main() {
 
 main().catch(err => {
     console.error(err);
+    Sentry.captureException(err);
     process.exit(2);
 });
