@@ -3,7 +3,8 @@ import { URL } from 'url';
 import { Client, Message } from 'eris';
 
 import { DiscordInfo } from '../discord';
-import { illustHandler, userHandler } from './pixiv';
+import * as pixiv from './pixiv';
+import * as syosetu from './syosetu';
 
 export interface UnfurlHandler<T> {
     testUrl(url: URL): T | undefined;
@@ -31,7 +32,8 @@ export class Unfurler {
 
 export function createUnfurler(): Unfurler {
     const unfurler = new Unfurler();
-    unfurler.addHandler(illustHandler);
-    unfurler.addHandler(userHandler);
+    unfurler.addHandler(pixiv.illustHandler);
+    unfurler.addHandler(pixiv.userHandler);
+    unfurler.addHandler(syosetu.infoHandler);
     return unfurler;
 }
