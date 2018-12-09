@@ -7,7 +7,7 @@ import axios from 'axios';
 import { Client, CommandClient, Message, TextChannel, Webhook } from 'eris';
 import * as dateFns from 'date-fns';
 
-import { DiscordInfo, getLinkedChannels, getOrCreateChannelWebhook, saveDiscordInfo } from './discord';
+import { DiscordInfo, getAvatarUrl, getLinkedChannels, getOrCreateChannelWebhook, saveDiscordInfo } from './discord';
 import * as airHandlers from './handler/air';
 import * as pixivHandlers from './handler/pixiv';
 import * as image from './image';
@@ -191,7 +191,7 @@ async function main() {
                         file,
                         embeds: msg.embeds,
                         username: msg.member && msg.member.nick ? msg.member.nick : msg.author.username,
-                        avatarURL: msg.author.avatarURL,
+                        avatarURL: getAvatarUrl(msg.author),
                     },
                 );
             });

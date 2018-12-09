@@ -1,41 +1,53 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
+export const enum NovelType {
+    Long = 1,
+    Short = 2,
+}
+
 export interface SyosetuInfo {
     ncode: string;
     title: string;
-    author: { name: string; url: string; };
+    author: { id: number; name: string; };
     synopsis: string;
     parts: number;
+    type: NovelType;
     end: boolean;
+}
+
+export class SyosetuNotFoundError extends Error {
 }
 
 const PARTS_REGEX = /全(\d+)部分/;
 
 export async function fetchSyosetuInfo(ncode: string): Promise<SyosetuInfo> {
-    const ret = await axios.get(`https://ncode.syosetu.com/novelview/infotop/ncode/${ncode}/`);
-    const $ = cheerio.load(ret.data);
-
-    const title = $('h1').text().trim();
-    const authorLink = $('#noveltable1 tr:nth-child(2) > td > a');
-    const authorName = authorLink.text().trim();
-    const authorUrl = authorLink.attr('href');
-    const synopsis = $('#noveltable1 tr:nth-child(1) > td').text().trim();
-
-    const partsMatch = PARTS_REGEX.exec($('#pre_info').text());
-    const parts = partsMatch == null ? 0 : Number(partsMatch[1]);
-
-    const end = $('#noveltype_notend').length === 0;
+    const ret = await axios.get(
+        'https://api.syosetu.com/novelapi/api/',
+        {
+            params: {
+                out: 'json',
+                libtype: 2,
+                of: 't-u-w-s-nt-e-ga',
+                ncode,
+            },
+        },
+    );
+    if (ret.data[0] == null || ret.data[0].allcount <= 0) {
+        throw new SyosetuNotFoundError();
+    }
+    const rawData = ret.data[1];
 
     return {
         ncode,
-        title,
+        title: rawData.title,
         author: {
-            name: authorName,
-            url: authorUrl,
+            id: rawData.userid,
+            name: rawData.writer,
         },
-        synopsis,
-        parts,
-        end,
+        synopsis: rawData.story,
+        parts: rawData.general_all_no,
+        type: rawData.noveltype as NovelType,
+        end: rawData.end === 0,
     };
 }

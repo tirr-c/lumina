@@ -5,17 +5,13 @@ import * as image from '../image';
 import { pixivSessionPath } from '../path';
 import * as pixiv from '../pixiv';
 
-import { DiscordInfo, getLinkedChannels, getOrCreateChannelWebhook } from '../discord';
+import { DiscordInfo, getAvatarUrl, getLinkedChannels, getOrCreateChannelWebhook } from '../discord';
 
 export async function processIllustRequest(bot: Client, discord: DiscordInfo, msg: Message, id: string) {
     try {
         const session = await pixiv.PixivSession.fromSessionData(pixivSessionPath);
         const data = await session.getIllustInfo(id);
 
-        const footer = msg.member && {
-            text: `${msg.member.nick || msg.member.username}님의 요청`,
-            icon_url: msg.member.staticAvatarURL,
-        };
         const fields = [];
         fields.push({
             name: '종류',
@@ -49,8 +45,10 @@ export async function processIllustRequest(bot: Client, discord: DiscordInfo, ms
                 name: data.userName,
                 url: `https://www.pixiv.net/u/${data.userId}`,
             },
-            footer,
             fields,
+            footer: {
+                text: 'pixiv',
+            },
         };
 
         const restricted = data.restrict !== 0 || data.xRestrict !== 0;
@@ -59,10 +57,7 @@ export async function processIllustRequest(bot: Client, discord: DiscordInfo, ms
         if (restricted && msg.channel instanceof TextChannel && !msg.channel.nsfw) {
             await bot.createMessage(
                 msg.channel.id,
-                {
-                    content: ':underage: 후방주의 채널에서만 볼 수 있어요.',
-                    embed,
-                },
+                ':underage: 후방주의 채널에서만 볼 수 있어요.',
             );
             return;
         }
@@ -93,10 +88,18 @@ export async function processIllustRequest(bot: Client, discord: DiscordInfo, ms
         const channels = getLinkedChannels(discord, msg.channel.id);
         channels.unshift(msg.channel.id);
         const createMessagePromise = channels.map(async channelId => {
-            await bot.createMessage(channelId, {
-                content: restricted ? ':underage: R-18으로 지정된 일러스트입니다.' : '',
-                embed,
-            }, { file: processedFile, name: `${id}.${fileFormat}` });
+            const webhook = await getOrCreateChannelWebhook(bot, discord, channelId);
+            await bot.executeWebhook(
+                webhook.id,
+                webhook.token,
+                {
+                    content: restricted ? ':underage: R-18으로 지정된 일러스트입니다.' : '',
+                    file: { file: processedFile, name: `${id}.${fileFormat}` },
+                    embeds: [embed],
+                    username: msg.member && msg.member.nick ? msg.member.nick : msg.author.username,
+                    avatarURL: getAvatarUrl(msg.author),
+                },
+            );
         });
         await Promise.all(createMessagePromise);
         await loadingMessage.delete();
@@ -128,12 +131,16 @@ export async function processUserRequest(bot: Client, discord: DiscordInfo, msg:
 
         const channels = getLinkedChannels(discord, msg.channel.id);
         channels.unshift(msg.channel.id);
-        const createMessagePromise = channels.map(channelId => {
-            return bot.createMessage(
-                channelId,
+        const createMessagePromise = channels.map(async channelId => {
+            const webhook = await getOrCreateChannelWebhook(bot, discord, channelId);
+            await bot.executeWebhook(
+                webhook.id,
+                webhook.token,
                 {
                     content: '',
-                    embed,
+                    embeds: [embed],
+                    username: msg.member && msg.member.nick ? msg.member.nick : msg.author.username,
+                    avatarURL: getAvatarUrl(msg.author),
                 },
             );
         });
