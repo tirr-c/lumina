@@ -155,6 +155,12 @@ async function main() {
         if (discord.noticeChannelId != null) {
             await runAllNotices(bot, discord.noticeChannelId);
         }
+        console.log('Lumina is ready');
+    });
+
+    bot.on('error', (err: Error) => {
+        console.error(err);
+        Sentry.captureException(err);
     });
 
     bot.on('messageCreate', async msg => {
