@@ -148,7 +148,7 @@ async function main() {
 
     const bot = new CommandClient(token!, {}, {
         defaultHelpCommand: false,
-        prefix: '루미나,',
+        prefix: '루미나, ',
     });
 
     bot.on('ready', async () => {
