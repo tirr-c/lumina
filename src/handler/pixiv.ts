@@ -109,8 +109,8 @@ export async function processIllustRequest(bot: Client, discord: DiscordInfo, ms
         } else if (err instanceof pixiv.NotFoundError) {
             await bot.createMessage(msg.channel.id, ':x: 일러스트를 찾을 수 없어요.');
         } else {
-            console.error(err);
             await bot.createMessage(msg.channel.id, ':dizzy_face: 서버 오류예요...');
+            throw err;
         }
     }
 }
@@ -151,8 +151,8 @@ export async function processUserRequest(bot: Client, discord: DiscordInfo, msg:
         } else if (err instanceof pixiv.NotFoundError) {
             await bot.createMessage(msg.channel.id, ':x: 유저를 찾을 수 없어요.');
         } else {
-            console.error(err);
             await bot.createMessage(msg.channel.id, ':dizzy_face: 서버 오류예요...');
+            throw err;
         }
     }
 }
