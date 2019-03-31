@@ -37,8 +37,8 @@ export async function handleAirQuery(bot: Client, msg: Message, arg: AirQueryArg
 
         const header =
             `**${location.name}**에서 가장 가까운 **${airStatus.stationName}**의 정보입니다. (${airStatus.time})`;
-        const pm10Info = `PM10 (ppm): ${formatPM(airStatus.data.get('pm10'), PM10_STOPS)}`;
-        const pm25Info = `PM2.5 (ppm): ${formatPM(airStatus.data.get('pm2.5'), PM25_STOPS)}`;
+        const pm10Info = `PM10 (\u338d/\u33a5): ${formatPM(airStatus.data.get('pm10'), PM10_STOPS)}`;
+        const pm25Info = `PM2.5 (\u338d/\u33a5): ${formatPM(airStatus.data.get('pm2.5'), PM25_STOPS)}`;
         const content = `${header}\n\n${pm10Info}\n${pm25Info}`;
 
         await bot.createMessage(
