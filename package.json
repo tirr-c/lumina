@@ -21,7 +21,7 @@
   "homepage": "https://github.com/tirr-c/lumina#readme",
   "dependencies": {
     "@sentry/node": "^4.4.1",
-    "axios": "^0.18.0",
+    "axios": "^0.21.1",
     "cheerio": "^1.0.0-rc.2",
     "date-fns": "^1.29.0",
     "eris": "^0.9.0",
